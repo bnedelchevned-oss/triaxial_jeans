@@ -1,0 +1,249 @@
+"""
+Confocal ellipsoidal coordinate system.
+
+Implementation based on the geometry used in:
+
+van de Ven et al. (2003)
+"General solution of the Jeans equations for triaxial galaxies
+with separable potentials"
+
+The coordinate system is defined by three constants:
+
+    alpha < beta < gamma < 0
+
+The coordinates (lambda, mu, nu) are roots of:
+
+    x^2/(tau+alpha)
+  + y^2/(tau+beta)
+  + z^2/(tau+gamma) = 1
+
+"""
+
+from __future__ import annotations
+
+import numpy as np
+from scipy.optimize import brentq
+
+
+class EllipsoidalCoordinates:
+        """
+    Confocal ellipsoidal coordinate system.
+
+    Parameters
+    ----------
+    alpha, beta, gamma : float
+
+        Must satisfy:
+
+            alpha < beta < gamma < 0
+
+    """
+
+            def __init__(
+                            self,
+                            alpha: float,
+                            beta: float,
+                            gamma: float,
+                        ):
+
+                        if not (alpha < beta < gamma < 0):
+                                        raise ValueError(
+                                                            "Require alpha < beta < gamma < 0"
+                                                        )
+
+                                            self.alpha = alpha
+                                                    self.beta = beta
+                                                            self.gamma = gamma
+
+
+                                                                # ---------------------------------------------------------
+                                                                    # Forward transformation
+                                                                        # ---------------------------------------------------------
+
+                                                                            def to_cartesian(
+                                                                                            self,
+                                                                                            lam,
+                                                                                            mu,
+                                                                                            nu,
+                                                                                            signs=(1, 1, 1),
+                                                                                        ):
+                                                                                        """
+        Convert ellipsoidal coordinates to Cartesian.
+
+        Parameters
+        ----------
+        lam, mu, nu
+
+        signs : tuple
+            Octant signs for x,y,z
+        """
+
+                                                                                                a = self.alpha
+                                                                                                        b = self.beta
+                                                                                                                c = self.gamma
+
+
+                                                                                                                        x2 = (
+                                                                                                                                        (lam+a)
+                                                                                                                                        *(mu+a)
+                                                                                                                                        *(nu+a)
+                                                                                                                                        /
+                                                                                                                                        ((a-b)*(a-c))
+                                                                                                                                    )
+
+
+                                                                                                                                y2 = (
+                                                                                                                                                (lam+b)
+                                                                                                                                                *(mu+b)
+                                                                                                                                                *(nu+b)
+                                                                                                                                                /
+                                                                                                                                                ((b-a)*(b-c))
+                                                                                                                                            )
+
+
+                                                                                                                                        z2 = (
+                                                                                                                                                        (lam+c)
+                                                                                                                                                        *(mu+c)
+                                                                                                                                                        *(nu+c)
+                                                                                                                                                        /
+                                                                                                                                                        ((c-a)*(c-b))
+                                                                                                                                                    )
+
+
+                                                                                                                                                x = signs[0]*np.sqrt(np.maximum(x2,0))
+                                                                                                                                                        y = signs[1]*np.sqrt(np.maximum(y2,0))
+                                                                                                                                                                z = signs[2]*np.sqrt(np.maximum(z2,0))
+
+
+                                                                                                                                                                        return x, y, z
+
+
+
+                                                                                                                                                                        # ---------------------------------------------------------
+                                                                                                                                                                            # Inverse transformation
+                                                                                                                                                                                # ---------------------------------------------------------
+
+                                                                                                                                                                                    def _root_function(
+                                                                                                                                                                                                    self,
+                                                                                                                                                                                                    tau,
+                                                                                                                                                                                                    x,
+                                                                                                                                                                                                    y,
+                                                                                                                                                                                                    z,
+                                                                                                                                                                                                ):
+
+                                                                                                                                                                                                return (
+                                                                                                                                                                                                                x*x/(tau+self.alpha)
+                                                                                                                                                                                                                +
+                                                                                                                                                                                                                y*y/(tau+self.beta)
+                                                                                                                                                                                                                +
+                                                                                                                                                                                                                z*z/(tau+self.gamma)
+                                                                                                                                                                                                                -
+                                                                                                                                                                                                                1
+                                                                                                                                                                                                            )
+
+
+                                                                                                                                                                                                def from_cartesian(
+                                                                                                                                                                                                                self,
+                                                                                                                                                                                                                x,
+                                                                                                                                                                                                                y,
+                                                                                                                                                                                                                z,
+                                                                                                                                                                                                            ):
+                                                                                                                                                                                                            """
+        Convert Cartesian position to ellipsoidal coordinates.
+
+        Returns
+        -------
+        lambda, mu, nu
+        """
+
+                                                                                                                                                                                                                    a=self.alpha
+                                                                                                                                                                                                                            b=self.beta
+                                                                                                                                                                                                                                    c=self.gamma
+
+
+                                                                                                                                                                                                                                            eps=1e-12
+
+
+                                                                                                                                                                                                                                                    f=lambda t: self._root_function(
+                                                                                                                                                                                                                                                                    t,x,y,z
+                                                                                                                                                                                                                                                                )
+
+
+                                                                                                                                                                                                                                                            lam = brentq(
+                                                                                                                                                                                                                                                                            f,
+                                                                                                                                                                                                                                                                            -c+eps,
+                                                                                                                                                                                                                                                                            max(
+                                                                                                                                                                                                                                                                                                1,
+                                                                                                                                                                                                                                                                                                x*x+y*y+z*z
+                                                                                                                                                                                                                                                                                            )*100
+                                                                                                                                                                                                                                                                        )
+
+
+                                                                                                                                                                                                                                                                    mu = brentq(
+                                                                                                                                                                                                                                                                                    f,
+                                                                                                                                                                                                                                                                                    -b+eps,
+                                                                                                                                                                                                                                                                                    -c-eps
+                                                                                                                                                                                                                                                                                )
+
+
+                                                                                                                                                                                                                                                                            nu = brentq(
+                                                                                                                                                                                                                                                                                            f,
+                                                                                                                                                                                                                                                                                            -a+eps,
+                                                                                                                                                                                                                                                                                            -b-eps
+                                                                                                                                                                                                                                                                                        )
+
+
+                                                                                                                                                                                                                                                                                    return lam, mu, nu
+
+
+
+                                                                                                                                                                                                                                                                                    # ---------------------------------------------------------
+                                                                                                                                                                                                                                                                                        # Metric
+                                                                                                                                                                                                                                                                                            # ---------------------------------------------------------
+
+                                                                                                                                                                                                                                                                                                def scale_factors(
+                                                                                                                                                                                                                                                                                                                self,
+                                                                                                                                                                                                                                                                                                                lam,
+                                                                                                                                                                                                                                                                                                                mu,
+                                                                                                                                                                                                                                                                                                                nu,
+                                                                                                                                                                                                                                                                                                            ):
+                                                                                                                                                                                                                                                                                                            """
+        Lamé scale factors.
+        """
+
+                                                                                                                                                                                                                                                                                                                    a=self.alpha
+                                                                                                                                                                                                                                                                                                                            b=self.beta
+                                                                                                                                                                                                                                                                                                                                    c=self.gamma
+
+
+                                                                                                                                                                                                                                                                                                                                            def h(t,u,v):
+
+                                                                                                                                                                                                                                                                                                                                                            numerator=(t-u)*(t-v)
+
+                                                                                                                                                                                                                                                                                                                                                                        denominator=(
+                                                                                                                                                                                                                                                                                                                                                                                            4
+                                                                                                                                                                                                                                                                                                                                                                                            *(t+a)
+                                                                                                                                                                                                                                                                                                                                                                                            *(t+b)
+                                                                                                                                                                                                                                                                                                                                                                                            *(t+c)
+                                                                                                                                                                                                                                                                                                                                                                                        )
+
+                                                                                                                                                                                                                                                                                                                                                                                    return np.sqrt(
+                                                                                                                                                                                                                                                                                                                                                                                                        numerator/denominator
+                                                                                                                                                                                                                                                                                                                                                                                                    )
+
+
+                                                                                                                                                                                                                                                                                                                                                                                        return (
+                                                                                                                                                                                                                                                                                                                                                                                                        h(lam,mu,nu),
+                                                                                                                                                                                                                                                                                                                                                                                                        h(mu,lam,nu),
+                                                                                                                                                                                                                                                                                                                                                                                                        h(nu,lam,mu),
+                                                                                                                                                                                                                                                                                                                                                                                                    )
+
+
+                                                                                                                                                                                                                                                                                                                                                                                        def metric_tensor(
+                                                                                                                                                                                                                                                                                                                                                                                                        self,
+                                                                                                                                                                                                                                                                                                                                                                                                        lam,
+                                                                                                                                                                                                                                                                                                                                                                                                        mu,
+                                                                                                                                                                                                                                                                                                                                                                                                        nu,
+                                                                                                                                                                                                                                                                                                                                                                                                    ):
+
+                                                                                                                                                                                                                                                                                                                                                                                            

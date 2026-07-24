@@ -1,0 +1,137 @@
+"""
+Jeans equation solver framework.
+
+Implements the second moment equations for stationary systems
+in confocal ellipsoidal coordinates.
+
+The Jeans equations are:
+
+∂(ρ <v_i v_j>)/∂x_j + ρ ∂Φ/∂x_i = 0
+
+For Stäckel potentials the velocity ellipsoid aligns with
+(lambda,mu,nu).
+
+Based on:
+van de Ven et al. (2003)
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .geometry import EllipsoidalCoordinates
+from .density import Density
+from .stackel import StackelPotential
+
+
+@dataclass
+class JeansSolver:
+    """
+    Jeans solver for a triaxial Stäckel model.
+
+    Parameters
+    ----------
+    coordinates:
+        Confocal ellipsoidal coordinate system.
+
+    potential:
+        Stäckel potential.
+
+    density:
+        Density model.
+    """
+
+    coordinates: EllipsoidalCoordinates
+    potential: StackelPotential
+    density: Density
+
+    def gravitational_terms(self, lam: float, mu: float, nu: float):
+        """
+        Return coordinate derivatives of the potential.
+
+        Gives:
+
+            ∂Φ/∂λ
+            ∂Φ/∂μ
+            ∂Φ/∂ν
+        """
+
+        return self.potential.derivatives(lam, mu, nu)
+
+
+    def force(self, lam: float, mu: float, nu: float):
+        """
+        Coordinate forces:
+
+        F_i = -∂Φ/∂q_i
+        """
+
+        return tuple(
+            -x for x in self.gravitational_terms(
+                lam,mu,nu
+            )
+        )
+
+
+    def velocity_scale(self, lam: float, mu: float, nu: float):
+        """
+        Natural velocity scales:
+
+        v_i² ~ q_i ∂Φ/∂q_i
+
+        This is a preliminary solver.
+        The exact Stäckel integrals are added next.
+        """
+
+        h = self.coordinates.scale_factors(
+            lam,mu,nu
+        )
+
+        dphi = self.potential.derivatives(
+            lam,mu,nu
+        )
+
+        return tuple(
+            abs(q*d)/(h_i*h_i)
+            for q,d,h_i in zip(
+                (lam,mu,nu),
+                dphi,
+                h
+            )
+        )
+
+
+    def stress_tensor(self, lam: float, mu: float, nu: float):
+        """
+        Return diagonal velocity second moments:
+
+            σ² = diag(<vλ²>,<vμ²>,<vν²>)
+
+        """
+
+        values = self.velocity_scale(
+            lam,mu,nu
+        )
+
+        return np.diag(values)
+
+
+    def solve_point(self, lam: float, mu: float, nu: float):
+        """
+        Solve Jeans moments at one point.
+        """
+
+        rho = self.density.density(
+            lam,mu,nu
+        )
+
+        sigma = self.stress_tensor(
+            lam,mu,nu
+        )
+
+        return {
+            "density": rho,
+            "sigma2": sigma
+        }
